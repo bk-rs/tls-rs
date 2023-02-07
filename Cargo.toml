@@ -1,4 +1,6 @@
 [workspace]
 members = [
+    "stream-tls-client_hello-detector",
     "tls-alpn-protocol",
+    "tls-client_hello-parser",
 ]
