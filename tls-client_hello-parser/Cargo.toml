@@ -2,7 +2,7 @@
 name = "tls-client_hello-parser"
 version = "0.1.0"
 authors = ["vkill <vkill.net@gmail.com>"]
-edition = "2018"
+edition = "2021"
 description = "TLS ClientHello parser"
 license = "Apache-2.0 OR MIT"
 repository = "https://github.com/vkill/rust-tls-client_hello"
