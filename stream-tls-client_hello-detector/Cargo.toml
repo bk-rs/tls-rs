@@ -24,10 +24,12 @@ std-io-peek = { version = "0.1", default-features = false, features = [], option
 futures-util-io-peek = { version = "0.1", default-features = false, features = [], optional = true }
 
 [dev-dependencies]
-rustls = { version = "0.17", default-features = false, features = [] }
-async-tls = { version = "0.7", default-features = false, features = [] }
+rustls = { version = "0.20" }
+rustls-pemfile = { version = "1" }
+webpki-roots = { version = "0.22" }
+async-tls = { version = "0.12" }
 
-futures-executor = { version = "0.3", default-features = false, features = ["default", "thread-pool"] }
-futures-util-io-peek = { version = "0.1", default-features = false, features = ["async_io_async"] }
-futures-util = { version = "0.3", default-features = false, features = ["io"] }
-async-io = { version = "0.1", default-features = false, features = [] }
+futures-executor = { version = "0.3", features = ["thread-pool"] }
+futures-util-io-peek = { version = "0.1" }
+futures-util = { version = "0.3" }
+async-io = { version = "1" }

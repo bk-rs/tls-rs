@@ -13,4 +13,5 @@ categories = []
 readme = "README.md"
 
 [dependencies]
-rustls = { version = "0.18", default-features = false, features = [] }
+rustls = { version = "0.20", default-features = false }
+webpki = { version = "0.22", default-features = false, features = ["alloc"] }

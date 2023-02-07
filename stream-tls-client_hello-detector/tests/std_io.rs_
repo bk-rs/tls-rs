@@ -11,7 +11,8 @@ mod std_io_tests {
     use futures_executor::{block_on, ThreadPool};
     use futures_util::io::{AsyncReadExt, AsyncWriteExt};
     use futures_util::task::SpawnExt;
-    use rustls::{internal::pemfile, ClientConfig, NoClientAuth, ServerConfig};
+    use rustls::{ClientConfig, ServerConfig};
+    use rustls_pemfile as pemfile;
 
     use stream_tls_client_hello_detector::Detector;
 
@@ -20,6 +21,15 @@ mod std_io_tests {
     // ref https://github.com/async-rs/async-tls/blob/master/examples/client/src/main.rs
     #[test]
     fn tcp_stream() -> io::Result<()> {
+        let mut root_store = rustls::RootCertStore::empty();
+        root_store.add_server_trust_anchors(webpki_roots::TLS_SERVER_ROOTS.0.iter().map(|ta| {
+            rustls::OwnedTrustAnchor::from_subject_spki_name_constraints(
+                ta.subject,
+                ta.spki,
+                ta.name_constraints,
+            )
+        }));
+
         block_on(async {
             let listener = TcpListener::bind("127.0.0.1:0")?;
             let addr = listener.local_addr()?;
@@ -27,21 +37,23 @@ mod std_io_tests {
             let mkcert_path = PathBuf::new().join("tests/mkcert");
 
             let client_config = {
-                let mut client_config = ClientConfig::new();
+                let mut client_config = ClientConfig::builder()
+                    .with_safe_defaults()
+                    .with_root_certificates(root_store)
+                    .with_no_client_auth();
 
-                client_config
-                    .root_store
-                    .add_pem_file(&mut BufReader::new(File::open(
-                        mkcert_path.join("rootCA.pem"),
-                    )?))
-                    .map_err(|_| io::Error::new(io::ErrorKind::InvalidInput, "invalid cert"))?;
+                // client_config
+                //     .root_store
+                //     .add_pem_file(&mut BufReader::new(File::open(
+                //         mkcert_path.join("rootCA.pem"),
+                //     )?))
+                //     .map_err(|_| io::Error::new(io::ErrorKind::InvalidInput, "invalid cert"))?;
 
                 client_config
             };
             let tls_connector = TlsConnector::from(Arc::new(client_config));
 
             let server_config = {
-                let mut server_config = ServerConfig::new(NoClientAuth::new());
                 let certs = pemfile::certs(&mut BufReader::new(File::open(
                     mkcert_path.join("tls.lvh.me.crt"),
                 )?))
@@ -53,9 +65,12 @@ mod std_io_tests {
                 .first()
                 .expect("invalid key")
                 .to_owned();
-                server_config
-                    .set_single_cert(certs, key)
-                    .map_err(|err| io::Error::new(io::ErrorKind::InvalidInput, err))?;
+
+                let mut server_config = ServerConfig::builder()
+                    .with_safe_defaults()
+                    .with_no_client_auth()
+                    .with_single_cert(certs, key)
+                    .unwrap();
 
                 server_config
             };

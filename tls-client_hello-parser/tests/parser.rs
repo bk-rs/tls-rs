@@ -1,71 +1,106 @@
-use std::io::{self, Cursor, Write};
-
-use rustls::internal::msgs::{
-    codec::Codec,
-    enums::Compression,
-    handshake::{ClientExtension, Random, SessionID},
+use std::{
+    io::{Cursor, ErrorKind as IoErrorKind, Write as _},
+    sync::Arc,
 };
-use rustls::{CipherSuite, ProtocolVersion};
 
-use tls_client_hello_parser::{ClientHelloPayload, ParseOutput, Parser, TLSError};
+use rustls::{
+    cipher_suite::TLS13_CHACHA20_POLY1305_SHA256, version::TLS13, ClientConfig, ClientConnection,
+    ProtocolVersion, RootCertStore,
+};
+
+use tls_client_hello_parser::{ParseError, Parser};
 
 #[test]
-fn test_parse() -> io::Result<()> {
-    let mut parser = Parser::new();
-    let mut cursor = Cursor::new(vec![]);
+fn test_parse() -> Result<(), Box<dyn std::error::Error>> {
+    {
+        let mut parser = Parser::new();
 
-    match parser.parse(&mut cursor)? {
-        ParseOutput::Partial => (),
-        _ => assert!(true, "should ParseOutput::Partial"),
-    }
-
-    cursor.write(b"foo")?;
-    match parser.parse(&mut cursor)? {
-        ParseOutput::Invalid(e) => match e {
-            TLSError::CorruptMessage => (),
-            _ => assert!(true, "should TLSError::CorruptMessage"),
-        },
-        _ => assert!(true, "should ParseOutput::Invalid"),
-    }
-
-    let payload = ClientHelloPayload {
-        client_version: ProtocolVersion::TLSv1_3,
-        random: Random::from_slice(b"12345678901234567890123456789012"),
-        session_id: SessionID::new(b"1"),
-        cipher_suites: vec![CipherSuite::TLS13_CHACHA20_POLY1305_SHA256],
-        compression_methods: vec![Compression::Deflate],
-        extensions: vec![ClientExtension::EarlyData],
-    };
-    let mut payload_bytes = vec![];
-    payload.encode(&mut payload_bytes);
-    let payload_last_byte = payload_bytes.pop().expect("");
-
-    for sub_bytes in payload_bytes.chunks(3) {
-        cursor.write(sub_bytes)?;
-        match parser.parse(&mut cursor)? {
-            ParseOutput::Partial => (),
-            _ => assert!(true, "should ParseOutput::Partial"),
+        match parser.parse(&mut Cursor::new(b"")) {
+            Err(ParseError::IoError(err)) if err.kind() == IoErrorKind::UnexpectedEof => {}
+            x => panic!("{x:?}"),
         }
     }
 
-    cursor.write(&[payload_last_byte, 1, 2])?;
-    match parser.parse(&mut cursor)? {
-        ParseOutput::Done(payload_output) => {
-            assert_eq!(payload_output.client_version, payload.client_version);
-            assert_eq!(payload_output.random, payload.random);
-            assert_eq!(payload_output.session_id, payload.session_id);
-            assert_eq!(payload_output.cipher_suites, payload.cipher_suites);
-            assert_eq!(
-                payload_output.compression_methods,
-                payload.compression_methods
-            );
-            assert_eq!(payload_output.extensions.len(), 1);
-            match payload_output.extensions.first().unwrap() {
-                ClientExtension::EarlyData => (),
-                _ => assert!(true, "should ClientExtension::EarlyData"),
+    {
+        let mut parser = Parser::new();
+
+        let mut cursor = Cursor::new(b"foo");
+        match parser.parse(&mut cursor) {
+            Ok(None) => {}
+            x => panic!("{x:?}"),
+        }
+        match parser.parse(&mut cursor) {
+            Err(ParseError::IoError(err)) if err.kind() == IoErrorKind::UnexpectedEof => {}
+            x => panic!("{x:?}"),
+        }
+    }
+
+    {
+        // https://github.com/rustls/rustls/blob/v/0.20.8/rustls/tests/api.rs#L4035
+        let mut parser = Parser::new();
+
+        let root_store = RootCertStore::empty();
+        let client_config = ClientConfig::builder()
+            .with_safe_defaults()
+            .with_root_certificates(root_store)
+            .with_no_client_auth();
+        let client_config = Arc::new(client_config);
+        let mut client = ClientConnection::new(client_config, "example.com".try_into()?)?;
+        let mut buf = Vec::new();
+        client.write_tls(&mut buf)?;
+
+        let mut cursor = Cursor::new(Vec::<u8>::new());
+        let buf_last_byte = buf.pop().expect("");
+        for bytes in buf.chunks(10) {
+            let cursor_position = cursor.position();
+            cursor.write_all(bytes)?;
+            cursor.set_position(cursor_position);
+
+            match parser.parse(&mut cursor) {
+                Ok(None) => {}
+                x => panic!("{x:?}"),
             }
         }
-        _ => assert!(true, "should ParseOutput::Done"),
+
+        let cursor_position = cursor.position();
+        cursor.write_all(&[buf_last_byte])?;
+        cursor.set_position(cursor_position);
+
+        match parser.parse(&mut cursor) {
+            Ok(Some(chp)) => {
+                assert_eq!(chp.client_hello()?.server_name(), Some("example.com"));
+            }
+            x => panic!("{x:?}"),
+        }
+    }
+
+    {
+        let mut parser = Parser::new();
+
+        let root_store = RootCertStore::empty();
+        let client_config = ClientConfig::builder()
+            .with_cipher_suites(&[TLS13_CHACHA20_POLY1305_SHA256])
+            .with_safe_default_kx_groups()
+            .with_protocol_versions(&[&TLS13])?
+            .with_root_certificates(root_store)
+            .with_no_client_auth();
+        let client_config = Arc::new(client_config);
+        let mut client = ClientConnection::new(client_config, "xxx.com".try_into()?)?;
+        let mut buf = Vec::new();
+        client.write_tls(&mut buf)?;
+
+        let mut cursor = Cursor::new(buf);
+
+        match parser.parse(&mut cursor) {
+            Ok(Some(chp)) => {
+                assert_eq!(
+                    chp.get_versions_extension(),
+                    Some(&vec![ProtocolVersion::TLSv1_3])
+                );
+                assert_eq!(chp.client_hello()?.server_name(), Some("xxx.com"));
+            }
+            x => panic!("{x:?}"),
+        }
     }
 
     Ok(())
