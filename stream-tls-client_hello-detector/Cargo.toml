@@ -33,7 +33,7 @@ webpki-roots = { version = "0.22" }
 async-tls = { version = "0.12" }
 
 futures-executor = { version = "0.3", features = ["thread-pool"] }
-futures-util = { version = "0.3" }
+futures-util = { version = "0.3", features = ["io"] }
 async-io = { version = "1" }
 
 [package.metadata.cargo-all-features]

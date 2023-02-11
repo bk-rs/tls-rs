@@ -16,7 +16,7 @@ mod futures_util_io_tests {
 
     use stream_tls_client_hello_detector::Detector;
 
-    // ref https://github.com/vkill/rust-io-peek/blob/master/futures-util-io-peek/tests/async_io_async.rs
+    // ref https://github.com/bk-rs/rust-io-peek/blob/master/std-io-peek/tests/tcp_stream.rs
     // ref https://github.com/async-rs/async-tls/blob/master/examples/server/src/main.rs
     // ref https://github.com/async-rs/async-tls/blob/master/examples/client/src/main.rs
     #[test]
