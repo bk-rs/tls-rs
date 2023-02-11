@@ -12,16 +12,19 @@ keywords = ["TLS", "ClientHello"]
 categories = []
 readme = "README.md"
 
+[package.metadata.docs.rs]
+all-features = true
+
 [features]
 default = ["std_io"]
 std_io = ["std-io-peek"]
 futures_util_io = ["futures-util-io-peek"]
 
 [dependencies]
-tls-client_hello-parser = { path = "../tls-client_hello-parser", version = "0.1", default-features = false, features = [] }
+tls-client_hello-parser = { default-features = false, path = "../tls-client_hello-parser" }
 
-std-io-peek = { version = "0.1", default-features = false, features = [], optional = true }
-futures-util-io-peek = { version = "0.1", default-features = false, features = [], optional = true }
+std-io-peek = { version = "0.1", default-features = false, optional = true }
+futures-util-io-peek = { version = "0.1", default-features = false, optional = true }
 
 [dev-dependencies]
 rustls = { version = "0.20" }
@@ -30,6 +33,8 @@ webpki-roots = { version = "0.22" }
 async-tls = { version = "0.12" }
 
 futures-executor = { version = "0.3", features = ["thread-pool"] }
-futures-util-io-peek = { version = "0.1" }
 futures-util = { version = "0.3" }
 async-io = { version = "1" }
+
+[package.metadata.cargo-all-features]
+skip_optional_dependencies = true
