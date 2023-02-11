@@ -1,5 +1,3 @@
-pub use rustls;
-
 use std::io::{Error as IoError, ErrorKind as IoErrorKind, Read};
 
 use rustls::{
