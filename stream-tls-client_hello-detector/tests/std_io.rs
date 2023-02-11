@@ -38,7 +38,6 @@ fn tcp_stream() -> Result<(), Box<dyn std::error::Error>> {
         let addr = listener.local_addr()?;
 
         let tls_connector = TlsConnector::from(Arc::new(make_client_config()?));
-
         let tls_acceptor = TlsAcceptor::from(Arc::new(make_server_config()?));
 
         let tcp_stream_c = Async::<TcpStream>::connect(addr).await?;
@@ -83,7 +82,7 @@ fn tcp_stream() -> Result<(), Box<dyn std::error::Error>> {
             tls_stream_s
                 .write_all(b"bar")
                 .await
-                .expect("tls_stream_s.write");
+                .expect("tls_stream_s.write_all");
             println!("tls_stream_s write done");
 
             let mut buf = [0; 5];
@@ -107,7 +106,7 @@ fn tcp_stream() -> Result<(), Box<dyn std::error::Error>> {
             tls_stream_c
                 .write_all(b"foo")
                 .await
-                .expect("tls_stream_c.write");
+                .expect("tls_stream_c.write_all");
             println!("tls_stream_c write done");
 
             let mut buf = [0; 5];

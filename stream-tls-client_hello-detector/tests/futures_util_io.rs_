@@ -1,162 +1,134 @@
-#[cfg(feature = "futures_util_io")]
-mod futures_util_io_tests {
-    use std::fs::File;
-    use std::io::{self, BufReader};
-    use std::net::{Shutdown, TcpListener, TcpStream};
-    use std::path::PathBuf;
-    use std::sync::{mpsc, Arc};
+#![allow(clippy::unused_io_amount)]
+#![cfg(feature = "futures_util_io")]
 
-    use async_io::Async;
-    use async_tls::{TlsAcceptor, TlsConnector};
-    use futures_executor::{block_on, ThreadPool};
-    use futures_util::io::{AsyncReadExt, AsyncWriteExt};
-    use futures_util::stream::StreamExt;
-    use futures_util::task::SpawnExt;
-    use rustls::{internal::pemfile, ClientConfig, NoClientAuth, ServerConfig};
+use std::{
+    net::{Shutdown, TcpListener, TcpStream},
+    sync::{mpsc, Arc},
+};
 
-    use stream_tls_client_hello_detector::Detector;
+use async_io::Async;
+use async_tls::{TlsAcceptor, TlsConnector};
+use futures_executor::{block_on, ThreadPool};
+use futures_util::{
+    io::{AsyncReadExt as _, AsyncWriteExt as _},
+    pin_mut,
+    stream::StreamExt as _,
+    task::SpawnExt as _,
+};
 
-    // ref https://github.com/bk-rs/rust-io-peek/blob/master/std-io-peek/tests/tcp_stream.rs
-    // ref https://github.com/async-rs/async-tls/blob/master/examples/server/src/main.rs
-    // ref https://github.com/async-rs/async-tls/blob/master/examples/client/src/main.rs
-    #[test]
-    fn async_io_async_tcp_stream() -> io::Result<()> {
-        block_on(async {
-            let listener = Async::<TcpListener>::bind(([127, 0, 0, 1], 0))?;
-            let addr = listener.get_ref().local_addr()?;
+use stream_tls_client_hello_detector::Detector;
 
-            let mkcert_path = PathBuf::new().join("tests/mkcert");
+pub mod helper;
+use helper::{make_client_config, make_server_config};
 
-            let client_config = {
-                let mut client_config = ClientConfig::new();
+// ref https://github.com/bk-rs/rust-io-peek/blob/master/std-io-peek/tests/tcp_stream.rs
+// ref https://github.com/async-rs/async-tls/blob/master/examples/server/src/main.rs
+// ref https://github.com/async-rs/async-tls/blob/master/examples/client/src/main.rs
+#[test]
+fn async_io_async_tcp_stream() -> Result<(), Box<dyn std::error::Error>> {
+    block_on(async {
+        let listener = Async::<TcpListener>::bind(([127, 0, 0, 1], 0))?;
+        let addr = listener.get_ref().local_addr()?;
 
-                client_config
-                    .root_store
-                    .add_pem_file(&mut BufReader::new(File::open(
-                        mkcert_path.join("rootCA.pem"),
-                    )?))
-                    .map_err(|_| io::Error::new(io::ErrorKind::InvalidInput, "invalid cert"))?;
+        let tls_connector = TlsConnector::from(Arc::new(make_client_config()?));
+        let tls_acceptor = TlsAcceptor::from(Arc::new(make_server_config()?));
 
-                client_config
-            };
-            let tls_connector = TlsConnector::from(Arc::new(client_config));
+        let tcp_stream_c = Async::<TcpStream>::connect(addr).await?;
+        let incoming = listener.incoming();
+        pin_mut!(incoming);
+        let mut tcp_stream_s = incoming.next().await.ok_or("incoming next none")??;
 
-            let server_config = {
-                let mut server_config = ServerConfig::new(NoClientAuth::new());
-                let certs = pemfile::certs(&mut BufReader::new(File::open(
-                    mkcert_path.join("tls.lvh.me.crt"),
-                )?))
-                .map_err(|_| io::Error::new(io::ErrorKind::InvalidInput, "invalid cert"))?;
-                let key = pemfile::pkcs8_private_keys(&mut BufReader::new(File::open(
-                    mkcert_path.join("tls.lvh.me-key.pem"),
-                )?))
-                .map_err(|_| io::Error::new(io::ErrorKind::InvalidInput, "invalid key"))?
-                .first()
-                .expect("invalid key")
-                .to_owned();
-                server_config
-                    .set_single_cert(certs, key)
-                    .map_err(|err| io::Error::new(io::ErrorKind::InvalidInput, err))?;
+        println!("addr:{addr:?}, tcp_stream_c:{tcp_stream_c:?} tcp_stream_s:{tcp_stream_s:?}");
 
-                server_config
-            };
-            let tls_acceptor = TlsAcceptor::from(Arc::new(server_config));
+        let (sender_s, receiver) = mpsc::channel::<String>();
+        let sender_c = sender_s.clone();
 
-            let tcp_stream_c = Async::<TcpStream>::connect(addr).await?;
-            let mut tcp_stream_s = listener
-                .incoming()
-                .next()
+        let executor = ThreadPool::new()?;
+
+        executor.spawn(async move {
+            let mut detector = Detector::new();
+            let client_hello_payload = detector
+                .detect_async(&mut tcp_stream_s)
                 .await
-                .expect("Get next incoming failed")?;
+                .expect("detector.detect_async");
+            println!("{:?}", client_hello_payload);
 
-            println!(
-                "addr {:?}, tcp_stream_c {:?} tcp_stream_s {:?}",
-                addr, tcp_stream_c, tcp_stream_s
-            );
+            let mut tls_stream_s = tls_acceptor
+                .accept(tcp_stream_s)
+                .await
+                .expect("tls_acceptor.accept");
 
-            let (sender_s, receiver) = mpsc::channel::<String>();
-            let sender_c = sender_s.clone();
+            println!("tls_stream_s {tls_stream_s:?}");
 
-            let executor = ThreadPool::new()?;
+            let mut buf = [0; 5];
+            tls_stream_s
+                .read(&mut buf)
+                .await
+                .expect("tls_stream_s.read");
+            assert_eq!(&buf, b"foo\0\0");
+            println!("tls_stream_s read done");
 
-            executor
-                .spawn(async move {
-                    let mut detector = Detector::new();
-                    let client_hello_payload =
-                        detector.detect_async(&mut tcp_stream_s).await.expect(
-                            "detector
-                        .detect_async failed",
-                        );
-                    println!("{:?}", client_hello_payload);
+            tls_stream_s
+                .write_all(b"bar")
+                .await
+                .expect("tls_stream_s.write_all");
+            println!("tls_stream_s write done");
 
-                    let mut tls_stream_s = tls_acceptor.accept(tcp_stream_s).await.expect(
-                        "tls_acceptor
-                        .accept failed",
-                    );
+            let mut buf = [0; 5];
+            tls_stream_s
+                .read(&mut buf)
+                .await
+                .expect("tls_stream_s.read");
+            assert_eq!(&buf, b"\0\0\0\0\0");
 
-                    println!("tls_stream_s {:?}", tls_stream_s);
+            sender_s
+                .send("server done".to_owned())
+                .expect("sender_s.send");
+        })?;
 
-                    let mut buf = [0; 5];
-                    tls_stream_s.read(&mut buf).await.expect("read failed");
-                    assert_eq!(&buf, b"foo\0\0");
-                    println!("tls_stream_s read done");
+        executor.spawn(async move {
+            let mut tls_stream_c = tls_connector
+                .connect("tls.lvh.me", tcp_stream_c)
+                .await
+                .expect("tls_connector.connect");
 
-                    tls_stream_s.write(b"bar").await.expect("write failed");
-                    println!("tls_stream_s write done");
+            println!("tls_stream_c {tls_stream_c:?}");
 
-                    let mut buf = [0; 5];
-                    tls_stream_s.read(&mut buf).await.expect("read failed");
-                    assert_eq!(&buf, b"\0\0\0\0\0");
+            tls_stream_c
+                .write_all(b"foo")
+                .await
+                .expect("tls_stream_c.write_all");
+            println!("tls_stream_c write done");
 
-                    sender_s
-                        .send("server done".to_owned())
-                        .expect("sender_s.send failed");
-                })
-                .map_err(|e| io::Error::new(io::ErrorKind::Other, e))?;
+            let mut buf = [0; 5];
+            tls_stream_c
+                .read(&mut buf)
+                .await
+                .expect("tls_stream_c.read");
+            assert_eq!(&buf, b"bar\0\0");
+            println!("tls_stream_c read done");
 
-            executor
-                .spawn(async move {
-                    let mut tls_stream_c = tls_connector
-                        .connect("tls.lvh.me", tcp_stream_c)
-                        .await
-                        .expect(
-                            "tls_connector
-                        .connect failed",
-                        );
+            tls_stream_c
+                .get_mut()
+                .get_mut()
+                .shutdown(Shutdown::Both)
+                .expect("tls_stream_c.shutdown");
 
-                    println!("tls_stream_c {:?}", tls_stream_c);
+            println!("tls_stream_c shutdown done");
 
-                    tls_stream_c.write(b"foo").await.expect("write failed");
-                    println!("tls_stream_c write done");
+            sender_c
+                .send("client done".to_owned())
+                .expect("sender_c.send");
+        })?;
 
-                    let mut buf = [0; 5];
-                    tls_stream_c.read(&mut buf).await.expect("read failed");
-                    assert_eq!(&buf, b"bar\0\0");
-                    println!("tls_stream_c read done");
+        let msg_1 = receiver.recv().unwrap();
+        println!("receiver.recv {msg_1}");
+        assert_eq!(msg_1, "client done");
 
-                    tls_stream_c
-                        .get_mut()
-                        .get_mut()
-                        .shutdown(Shutdown::Both)
-                        .expect("shutdown call failed");
+        let msg_2 = receiver.recv().unwrap();
+        println!("receiver.recv {msg_2}");
+        assert_eq!(msg_2, "server done");
 
-                    println!("tls_stream_c shutdown done");
-
-                    sender_c
-                        .send("client done".to_owned())
-                        .expect("sender_c.send failed");
-                })
-                .map_err(|e| io::Error::new(io::ErrorKind::Other, e))?;
-
-            let msg_1 = receiver.recv().unwrap();
-            println!("receiver.recv {}", msg_1);
-            assert_eq!(msg_1, "client done");
-
-            let msg_2 = receiver.recv().unwrap();
-            println!("receiver.recv {}", msg_2);
-            assert_eq!(msg_2, "server done");
-
-            Ok(())
-        })
-    }
+        Ok(())
+    })
 }
