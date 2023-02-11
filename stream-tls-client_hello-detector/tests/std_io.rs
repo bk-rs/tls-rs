@@ -2,6 +2,7 @@
 #![cfg(feature = "std_io")]
 
 use std::{
+    io::ErrorKind as IoErrorKind,
     net::{Shutdown, TcpListener, TcpStream},
     sync::{mpsc, Arc},
 };
@@ -86,8 +87,10 @@ fn tcp_stream() -> Result<(), Box<dyn std::error::Error>> {
             println!("tls_stream_s write done");
 
             let mut buf = [0; 5];
-            // eof
-            let _ = tls_stream_s.read(&mut buf).await;
+            match tls_stream_s.read(&mut buf).await {
+                Ok(_) => {}
+                Err(err) => assert_eq!(err.kind(), IoErrorKind::UnexpectedEof),
+            }
             assert_eq!(&buf, b"\0\0\0\0\0");
 
             sender_s
