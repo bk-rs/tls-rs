@@ -45,6 +45,7 @@ fn async_io_async_tcp_stream() -> Result<(), Box<dyn std::error::Error>> {
         let tls_acceptor = TlsAcceptor::from(Arc::new(make_server_config()?));
 
         executor.spawn(async move {
+            // TODO, Don't remove, because detect_async will block.
             tcp_stream_s
                 .readable()
                 .await
