@@ -62,7 +62,7 @@ fn tcp_stream() -> Result<(), Box<dyn std::error::Error>> {
                 .await
                 .expect("tls_acceptor.accept");
 
-            println!("tls_stream_s {tls_stream_s:?}");
+            println!("tls_stream_s:{tls_stream_s:?}");
 
             let mut buf = [0; 5];
             tls_stream_s
@@ -96,7 +96,7 @@ fn tcp_stream() -> Result<(), Box<dyn std::error::Error>> {
                 .await
                 .expect("tls_connector.connect");
 
-            println!("tls_stream_c {tls_stream_c:?}");
+            println!("tls_stream_c:{tls_stream_c:?}");
 
             tls_stream_c
                 .write_all(b"foo")

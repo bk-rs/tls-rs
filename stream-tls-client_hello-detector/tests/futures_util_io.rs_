@@ -2,6 +2,7 @@
 #![cfg(feature = "futures_util_io")]
 
 use std::{
+    io::ErrorKind as IoErrorKind,
     net::{Shutdown, TcpListener, TcpStream},
     sync::{mpsc, Arc},
 };
@@ -11,7 +12,6 @@ use async_tls::{TlsAcceptor, TlsConnector};
 use futures_executor::{block_on, ThreadPool};
 use futures_util::{
     io::{AsyncReadExt as _, AsyncWriteExt as _},
-    pin_mut,
     stream::StreamExt as _,
     task::SpawnExt as _,
 };
@@ -35,9 +35,8 @@ fn async_io_async_tcp_stream() -> Result<(), Box<dyn std::error::Error>> {
         let tls_acceptor = TlsAcceptor::from(Arc::new(make_server_config()?));
 
         let tcp_stream_c = Async::<TcpStream>::connect(addr).await?;
-        let incoming = listener.incoming();
-        pin_mut!(incoming);
-        let mut tcp_stream_s = incoming.next().await.ok_or("incoming next none")??;
+        let mut incoming = Box::pin(listener.incoming());
+        let mut tcp_stream_s = incoming.next().await.ok_or("incoming.next none")??;
 
         println!("addr:{addr:?}, tcp_stream_c:{tcp_stream_c:?} tcp_stream_s:{tcp_stream_s:?}");
 
@@ -52,14 +51,21 @@ fn async_io_async_tcp_stream() -> Result<(), Box<dyn std::error::Error>> {
                 .detect_async(&mut tcp_stream_s)
                 .await
                 .expect("detector.detect_async");
-            println!("{:?}", client_hello_payload);
+            println!("{client_hello_payload:?}");
+            assert_eq!(
+                client_hello_payload
+                    .client_hello()
+                    .expect("client_hello_payload.client_hello")
+                    .server_name(),
+                Some(SNI)
+            );
 
             let mut tls_stream_s = tls_acceptor
                 .accept(tcp_stream_s)
                 .await
                 .expect("tls_acceptor.accept");
 
-            println!("tls_stream_s {tls_stream_s:?}");
+            println!("tls_stream_s:{tls_stream_s:?}");
 
             let mut buf = [0; 5];
             tls_stream_s
@@ -76,10 +82,10 @@ fn async_io_async_tcp_stream() -> Result<(), Box<dyn std::error::Error>> {
             println!("tls_stream_s write done");
 
             let mut buf = [0; 5];
-            tls_stream_s
-                .read(&mut buf)
-                .await
-                .expect("tls_stream_s.read");
+            match tls_stream_s.read(&mut buf).await {
+                Ok(_) => {}
+                Err(err) => assert_eq!(err.kind(), IoErrorKind::UnexpectedEof),
+            }
             assert_eq!(&buf, b"\0\0\0\0\0");
 
             sender_s
@@ -93,7 +99,7 @@ fn async_io_async_tcp_stream() -> Result<(), Box<dyn std::error::Error>> {
                 .await
                 .expect("tls_connector.connect");
 
-            println!("tls_stream_c {tls_stream_c:?}");
+            println!("tls_stream_c:{tls_stream_c:?}");
 
             tls_stream_c
                 .write_all(b"foo")
