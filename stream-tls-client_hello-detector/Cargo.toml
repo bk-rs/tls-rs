@@ -31,10 +31,13 @@ tls-mkcert-test = { path = "../tls-mkcert-test" }
 async-tls = { version = "0.12" }
 
 async-io = { version = "1" }
-futures-util-io-peek = { version = "0.2", default-features = false, features = ["async_io_async"] }
+futures-util-io-peek = { version = "0.2", default-features = false, features = ["async_io_async", "tokio_tcp_stream"] }
 
 futures-executor = { version = "0.3", features = ["thread-pool"] }
 futures-util = { version = "0.3", features = ["io"] }
+
+tokio = { version = "1", default-features = false, features = ["macros", "rt-multi-thread", "io-util"] }
+async-compat = { version = "0.2" }
 
 [package.metadata.cargo-all-features]
 skip_optional_dependencies = true
