@@ -14,26 +14,18 @@ use futures_util::{
     io::{AsyncReadExt as _, AsyncWriteExt as _},
     task::SpawnExt as _,
 };
+use tls_mkcert_test::{
+    rustls::{make_client_config, make_server_config},
+    SNI,
+};
 
 use stream_tls_client_hello_detector::Detector;
-
-pub mod helper;
-use helper::{make_client_config, make_server_config};
 
 // ref https://github.com/bk-rs/rust-io-peek/blob/master/std-io-peek/tests/tcp_stream.rs
 // ref https://github.com/async-rs/async-tls/blob/master/examples/server/src/main.rs
 // ref https://github.com/async-rs/async-tls/blob/master/examples/client/src/main.rs
 #[test]
 fn tcp_stream() -> Result<(), Box<dyn std::error::Error>> {
-    let mut root_store = rustls::RootCertStore::empty();
-    root_store.add_server_trust_anchors(webpki_roots::TLS_SERVER_ROOTS.0.iter().map(|ta| {
-        rustls::OwnedTrustAnchor::from_subject_spki_name_constraints(
-            ta.subject,
-            ta.spki,
-            ta.name_constraints,
-        )
-    }));
-
     block_on(async {
         let listener = TcpListener::bind("127.0.0.1:0")?;
         let addr = listener.local_addr()?;
@@ -60,7 +52,7 @@ fn tcp_stream() -> Result<(), Box<dyn std::error::Error>> {
                     .client_hello()
                     .expect("client_hello_payload.client_hello")
                     .server_name(),
-                Some("tls.lvh.me")
+                Some(SNI)
             );
 
             let tcp_stream_s = Async::new(tcp_stream_s).expect("Async::new");
@@ -100,7 +92,7 @@ fn tcp_stream() -> Result<(), Box<dyn std::error::Error>> {
 
         executor.spawn(async move {
             let mut tls_stream_c = tls_connector
-                .connect("tls.lvh.me", tcp_stream_c)
+                .connect(SNI, tcp_stream_c)
                 .await
                 .expect("tls_connector.connect");
 

@@ -1,15 +1,18 @@
 [package]
-name = "tls-alpn-protocol"
+name = "tls-mkcert-test"
 version = "0.1.0"
 authors = ["vkill <vkill.net@gmail.com>"]
 edition = "2021"
-description = "TLS Application-Layer Protocol Negotiation (ALPN) Protocol"
+description = "TLS mkcert test"
 license = "Apache-2.0 OR MIT"
 repository = "https://github.com/bk-rs/tls-rs"
 homepage = "https://github.com/bk-rs/tls-rs"
-documentation = "https://docs.rs/tls-alpn-protocol"
-keywords = ["TLS", "ALPN"]
+documentation = "https://docs.rs/tls-mkcert-test"
+keywords = []
 categories = []
 readme = "README.md"
 
 [dependencies]
+rustls = { version = "0.20" }
+rustls-pemfile = { version = "1" }
+webpki-roots = { version = "0.22" }

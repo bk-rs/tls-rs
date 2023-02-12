@@ -6,6 +6,7 @@ use rustls::{
 };
 use rustls_pemfile::{certs, pkcs8_private_keys};
 
+//
 pub fn make_client_config() -> Result<ClientConfig, Box<dyn std::error::Error>> {
     let mut root_store = RootCertStore::empty();
     root_store.add_server_trust_anchors(webpki_roots::TLS_SERVER_ROOTS.0.iter().map(|ta| {
@@ -16,7 +17,7 @@ pub fn make_client_config() -> Result<ClientConfig, Box<dyn std::error::Error>> 
         )
     }));
     root_store.add_parsable_certificates(
-        certs(&mut Cursor::new(include_bytes!("mkcert/rootCA.pem")))?.as_ref(),
+        certs(&mut Cursor::new(include_bytes!("../mkcert/rootCA.pem")))?.as_ref(),
     );
 
     Ok(ClientConfig::builder()
@@ -37,13 +38,13 @@ pub fn make_server_config() -> Result<ServerConfig, Box<dyn std::error::Error>> 
         .with_safe_defaults()
         .with_no_client_auth()
         .with_single_cert(
-            certs(&mut Cursor::new(include_bytes!("mkcert/tls.lvh.me.crt")))?
+            certs(&mut Cursor::new(include_bytes!("../mkcert/tls.lvh.me.crt")))?
                 .into_iter()
                 .map(Certificate)
                 .collect::<Vec<_>>(),
             PrivateKey(
                 pkcs8_private_keys(&mut Cursor::new(include_bytes!(
-                    "mkcert/tls.lvh.me-key.pem"
+                    "../mkcert/tls.lvh.me-key.pem"
                 )))?
                 .first()
                 .cloned()

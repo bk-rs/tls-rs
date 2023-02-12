@@ -5,8 +5,8 @@ authors = ["vkill <vkill.net@gmail.com>"]
 edition = "2021"
 description = "stream TLS ClientHello detector"
 license = "Apache-2.0 OR MIT"
-repository = "https://github.com/vkill/rust-tls-client_hello"
-homepage = "https://github.com/vkill/rust-tls-client_hello"
+repository = "https://github.com/bk-rs/tls-rs"
+homepage = "https://github.com/bk-rs/tls-rs"
 documentation = "https://docs.rs/stream-tls-client_hello-detector"
 keywords = ["TLS", "ClientHello"]
 categories = []
@@ -27,16 +27,14 @@ std-io-peek = { version = "0.1", default-features = false, optional = true }
 futures-util-io-peek = { version = "0.1", default-features = false, optional = true }
 
 [dev-dependencies]
-rustls = { version = "0.20" }
-rustls-pemfile = { version = "1" }
-webpki-roots = { version = "0.22" }
-
+tls-mkcert-test = { path = "../tls-mkcert-test" }
 async-tls = { version = "0.12" }
+
+async-io = { version = "1" }
+futures-util-io-peek = { version = "0.1", default-features = false, features = ["async_io_async"] }
 
 futures-executor = { version = "0.3", features = ["thread-pool"] }
 futures-util = { version = "0.3", features = ["io"] }
-async-io = { version = "1" }
-futures-util-io-peek = { version = "0.1", default-features = false, features = ["async_io_async"] }
 
 [package.metadata.cargo-all-features]
 skip_optional_dependencies = true
