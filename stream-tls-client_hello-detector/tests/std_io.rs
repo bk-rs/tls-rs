@@ -30,9 +30,6 @@ fn tcp_stream() -> Result<(), Box<dyn std::error::Error>> {
         let listener = TcpListener::bind("127.0.0.1:0")?;
         let addr = listener.local_addr()?;
 
-        let tls_connector = TlsConnector::from(Arc::new(make_client_config()?));
-        let tls_acceptor = TlsAcceptor::from(Arc::new(make_server_config()?));
-
         let tcp_stream_c = Async::<TcpStream>::connect(addr).await?;
         let mut tcp_stream_s = listener.incoming().next().ok_or("incoming next none")??;
 
@@ -42,6 +39,9 @@ fn tcp_stream() -> Result<(), Box<dyn std::error::Error>> {
         let sender_c = sender_s.clone();
 
         let executor = ThreadPool::new()?;
+
+        let tls_connector = TlsConnector::from(Arc::new(make_client_config()?));
+        let tls_acceptor = TlsAcceptor::from(Arc::new(make_server_config()?));
 
         executor.spawn(async move {
             let mut detector = Detector::new();

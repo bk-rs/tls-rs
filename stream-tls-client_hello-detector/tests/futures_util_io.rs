@@ -31,9 +31,6 @@ fn async_io_async_tcp_stream() -> Result<(), Box<dyn std::error::Error>> {
         let listener = Async::<TcpListener>::bind(([127, 0, 0, 1], 0))?;
         let addr = listener.get_ref().local_addr()?;
 
-        let tls_connector = TlsConnector::from(Arc::new(make_client_config()?));
-        let tls_acceptor = TlsAcceptor::from(Arc::new(make_server_config()?));
-
         let tcp_stream_c = Async::<TcpStream>::connect(addr).await?;
         let mut incoming = Box::pin(listener.incoming());
         let mut tcp_stream_s = incoming.next().await.ok_or("incoming.next none")??;
@@ -45,7 +42,15 @@ fn async_io_async_tcp_stream() -> Result<(), Box<dyn std::error::Error>> {
 
         let executor = ThreadPool::new()?;
 
+        let tls_connector = TlsConnector::from(Arc::new(make_client_config()?));
+        let tls_acceptor = TlsAcceptor::from(Arc::new(make_server_config()?));
+
         executor.spawn(async move {
+            tcp_stream_s
+                .readable()
+                .await
+                .expect("tcp_stream_s.readable");
+
             let mut detector = Detector::new();
             let client_hello_payload = detector
                 .detect_async(&mut tcp_stream_s)

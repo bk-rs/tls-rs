@@ -10,7 +10,7 @@ use tls_client_hello_parser::{ParseError, Parser};
 use std_io_peek::Peek;
 
 #[cfg(feature = "futures_util_io")]
-use futures_util_io_peek::{AsyncPeek, AsyncPeekExt};
+use futures_util_io_peek::{AsyncPeek, AsyncPeekExt as _};
 
 //
 pub struct Detector {
