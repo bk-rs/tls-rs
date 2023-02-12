@@ -1,6 +1,6 @@
 [package]
 name = "stream-tls-client_hello-detector"
-version = "0.1.0"
+version = "0.2.0"
 authors = ["vkill <vkill.net@gmail.com>"]
 edition = "2021"
 description = "stream TLS ClientHello detector"
@@ -21,7 +21,7 @@ std_io = ["std-io-peek"]
 futures_util_io = ["futures-util-io-peek"]
 
 [dependencies]
-tls-client_hello-parser = { default-features = false, path = "../tls-client_hello-parser" }
+tls-client_hello-parser = { version = "0.2", path = "../tls-client_hello-parser" }
 
 std-io-peek = { version = "0.2", default-features = false, optional = true }
 futures-util-io-peek = { version = "0.2", default-features = false, optional = true }
